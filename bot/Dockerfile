@@ -6,13 +6,13 @@ WORKDIR /app
 RUN pip install uv
 
 # Copy project files
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml ./
 
 # Install dependencies
-RUN uv sync --frozen
+RUN uv pip install -r pyproject.toml
 
 # Copy bot code
 COPY . .
 
 # Run the bot
-CMD ["uv", "run", "python", "bot.py"]
+CMD ["python", "bot.py"]

@@ -5,11 +5,9 @@ WORKDIR /app
 # Install uv
 RUN pip install uv
 
-# Copy project files
+# Copy and install
 COPY pyproject.toml ./
-
-# Install dependencies
-RUN uv pip install -r pyproject.toml
+RUN uv pip install --system aiogram httpx pydantic-settings
 
 # Copy bot code
 COPY . .

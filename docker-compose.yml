@@ -88,7 +88,14 @@ services:
       - ${LMS_API_HOST_ADDRESS:?'LMS_API_HOST_ADDRESS is required'}:${LMS_API_HOST_PORT:?'LMS_API_HOST_PORT is required'}:${CADDY_CONTAINER_PORT}
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile
-
+  bot:
+    build:
+      context: .
+      dockerfile: bot/Dockerfile.pip
+    env_file:
+      - .env.bot.secret
+    network_mode: host
+    restart: unless-stopped
 volumes:
   postgres_data:
 
@@ -96,3 +103,4 @@ networks:
   lms-network:
     name: lms-network
     attachable: true
+

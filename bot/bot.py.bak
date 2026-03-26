@@ -3,7 +3,6 @@ import sys
 import argparse
 import asyncio
 import json
-import re
 from config import Config
 from services.lms_client import LMSClient
 from services.llm_client import LLMClient
@@ -14,7 +13,7 @@ if not Config.BOT_TOKEN:
     sys.exit(1)
 
 def handle_start() -> str:
-    return "👋 Привет! Я LMS бот. Используйте /help для списка команд."
+    return "👋 Привет! Я бот для работы с LMS. Используйте /help для списка команд."
 
 def handle_help() -> str:
     return (
@@ -31,16 +30,15 @@ def handle_help() -> str:
 
 async def handle_health() -> str:
     client = LMSClient()
-    is_healthy, message = await client.check_health()
-    return message
+    if await client.check_health():
+        return "✅ Бэкенд доступен"
+    else:
+        return "❌ Бэкенд недоступен"
 
 async def handle_labs() -> str:
     client = LMSClient()
     items = await client.get_items()
     if not items:
-        is_healthy, error = await client.check_health()
-        if not is_healthy:
-            return f"❌ Ошибка бэкенда: {error}"
         return "Не удалось получить список лабораторных."
     labs = [item for item in items if item.get("type") == "lab"]
     if not labs:
@@ -52,57 +50,30 @@ async def handle_labs() -> str:
 
 async def handle_scores(lab_name: str = None) -> str:
     if not lab_name:
-        return "❓ Укажите название лабораторной: /scores <lab>\nПример: /scores lab-04"
-    
+        return "❓ Укажите название лабораторной: /scores <lab>"
     client = LMSClient()
-    lab = await client.find_lab_by_id(lab_name)
-    
+    items = await client.get_items()
+    lab = None
+    for item in items:
+        if item.get("type") == "lab" and item.get("title", "").lower() == lab_name.lower():
+            lab = item
+            break
     if not lab:
-        items = await client.get_items()
-        for item in items:
-            if item.get("type") == "lab" and item.get("title", "").lower() == lab_name.lower():
-                lab = item
-                break
-    
-    if not lab:
-        return f"❌ Лабораторная '{lab_name}' не найдена. Используйте /labs для списка доступных."
-    
-    lab_id = lab_name.lower().strip()
-    if not lab_id.startswith("lab-"):
-        title = lab.get("title", "")
-        match = re.search(r'Lab\s*(\d+)', title, re.IGNORECASE)
-        if match:
-            lab_id = f"lab-{match.group(1).zfill(2)}"
-        else:
-            lab_id = f"lab-{lab.get('id', '00')}"
-    
-    success, pass_rates, error = await client.get_pass_rates(lab_id)
-    
-    if not success:
-        return f"❌ Ошибка бэкенда: {error}"
-    
+        return f"❌ Лабораторная '{lab_name}' не найдена. Используйте /labs для списка."
+    lab_id = lab["id"]
+    pass_rates = await client.get_pass_rates(str(lab_id))
     if not pass_rates:
-        lab_number = lab_id.replace("lab-", "").lstrip("0") or "0"
-        lab_number_padded = lab_id.replace("lab-", "").zfill(2)
-        
-        for alt_id in [f"lab-{lab_number_padded}", f"lab-{lab_number}", lab_id]:
-            success, pass_rates, error = await client.get_pass_rates(alt_id)
-            if pass_rates:
-                break
-    
-    if not pass_rates:
-        return f"Нет данных о проходимость для {lab['title']}."
-    
-    lab_display = lab['title']
-    lines = [f"📊 Pass rates for {lab_display}:"]
+        return f"Не удалось получить данные для {lab['title']}."
+    lines = [f"📊 Проходимость по задачам для {lab['title']}:"]
     for task in pass_rates:
         task_name = task.get("task", "unknown")
         avg_score = task.get("avg_score", 0)
         attempts = task.get("attempts", 0)
-        lines.append(f"- {task_name}: {avg_score:.1f}% ({attempts} attempts)")
+        lines.append(f"- {task_name}: средний балл {avg_score:.1f}, попыток: {attempts}")
     return "\n".join(lines)
 
 async def handle_natural_language(query: str) -> str:
+    """Send query to LLM, handle tool calls, return final answer."""
     llm = LLMClient()
     lms = LMSClient()
     messages = [
@@ -111,24 +82,28 @@ async def handle_natural_language(query: str) -> str:
     ]
     response = await llm.chat(messages)
 
+    # Check for tool calls
     if "tool_calls" in response and response["tool_calls"]:
         tool_call = response["tool_calls"][0]
         tool_name = tool_call["function"]["name"]
         tool_args = json.loads(tool_call["function"]["arguments"])
 
+        # Call the appropriate tool
         if tool_name == "get_labs":
             tool_result = await handle_labs()
         elif tool_name == "get_scores":
-            tool_result = await handle_scores(tool_args.get("lab_title"))    
+            tool_result = await handle_scores(tool_args.get("lab_name"))
         else:
             tool_result = "Unknown tool"
 
+        # Append tool result to messages and get final answer
         messages.append(response)
         messages.append({"role": "tool", "content": tool_result, "tool_call_id": tool_call["id"]})
         final_response = await llm.chat(messages)
-        return final_response.get("content", "Не удалось получить ответ.")  
+        return final_response.get("content", "Не удалось получить ответ.")
     else:
-        return response.get("content", "Извините, я не понял запрос.")      
+        # No tool call, just return content
+        return response.get("content", "Извините, я не понял запрос.")
 
 COMMANDS = {
     "/start": handle_start,
@@ -139,43 +114,41 @@ COMMANDS = {
 }
 
 async def run_bot():
+    """Run the Telegram bot."""
     from aiogram import Bot, Dispatcher, types
     from aiogram.filters import CommandStart, Command
-
+    
     bot = Bot(token=Config.BOT_TOKEN)
     dp = Dispatcher()
-    
     @dp.message(CommandStart())
     async def cmd_start(message: types.Message):
         await message.answer(handle_start())
-
+    
     @dp.message(Command("help"))
     async def cmd_help(message: types.Message):
         await message.answer(handle_help())
-
+    
     @dp.message(Command("health"))
     async def cmd_health(message: types.Message):
         result = await handle_health()
         await message.answer(result)
-
+    
     @dp.message(Command("labs"))
     async def cmd_labs(message: types.Message):
         result = await handle_labs()
         await message.answer(result)
-    
-    @dp.message(Command("scores"))
-    async def cmd_scores(message: types.Message, command: types.Command):   
-        lab_name = command.args.strip() if command.args else None
-        result = await handle_scores(lab_name)
-        await message.answer(result)
-    
     @dp.message()
     async def handle_message(message: types.Message):
         result = await handle_natural_language(message.text)
         await message.answer(result)
-
+    
     await dp.start_polling(bot)
 
+    @dp.message(Command("scores"))
+    async def cmd_scores(message: types.Message, command: types.Command):
+        lab_name = command.args.strip() if command.args else None
+        result = await handle_scores(lab_name)
+        await message.answer(result)
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--test", help="Тестовый режим: передать команду или текст")
@@ -183,6 +156,7 @@ def main():
 
     if args.test:
         cmd = args.test.strip()
+        # Если начинается с '/' — обрабатываем как команду
         if cmd.startswith("/"):
             parts = cmd.split(maxsplit=1)
             base_cmd = parts[0]
@@ -197,13 +171,13 @@ def main():
                     result = handler()
                 print(result)
             else:
-                print(f"Неизвестная команда: {cmd}\nИспользуйте /help для списка команд.")
+                print(f"Неизвестная команда: {cmd}")
         else:
+            # Естественный язык
             result = asyncio.run(handle_natural_language(cmd))
             print(result)
     else:
         print("Запуск бота...")
         asyncio.run(run_bot())
-
 if __name__ == "__main__":
     main()

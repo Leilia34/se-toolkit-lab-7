@@ -1,16 +1,20 @@
-FROM python:3.12-slim
+# bot/Dockerfile
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install uv
+# Устанавливаем uv
 RUN pip install uv
 
-# Copy and install
-COPY pyproject.toml ./
-RUN uv pip install --system aiogram httpx pydantic-settings
+# Копируем файлы зависимостей из корня проекта
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
 
-# Copy bot code
-COPY . .
+# Копируем код бота
+COPY bot/ bot/
 
-# Run the bot
-CMD ["python", "bot.py"]
+# Устанавливаем рабочую директорию для бота
+WORKDIR /app/bot
+
+# Команда запуска
+CMD ["uv", "run", "bot.py"]

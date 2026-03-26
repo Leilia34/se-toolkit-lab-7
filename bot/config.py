@@ -1,10 +1,9 @@
 # bot/config.py
-#comment smth
 import os
 from pathlib import Path
 
 def load_env():
-    env_file = Path(__file__).parent / ".env.bot.secret"
+    env_file = Path(__file__).parent.parent / ".env.bot.secret"
     if env_file.exists():
         with open(env_file) as f:
             for line in f:

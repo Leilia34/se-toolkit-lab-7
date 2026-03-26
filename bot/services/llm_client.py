@@ -28,12 +28,10 @@ class LLMClient:
                     f"{self.base_url}/chat/completions",
                     json=payload,
                     headers=self.headers,
-                    timeout=60.0
+                    timeout=30.0
                 )
                 resp.raise_for_status()
                 data = resp.json()
                 return data["choices"][0]["message"]
-            except httpx.HTTPStatusError as e:
-                return {"role": "assistant", "content": f"LLM error: HTTP {e.response.status_code}"}
             except Exception as e:
-                return {"role": "assistant", "content": f"LLM error: {e}"}
+                return {"role": "assistant", "content": f"Ошибка при вызове LLM: {e}"}

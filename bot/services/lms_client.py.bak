@@ -1,0 +1,51 @@
+# services/lms_client.py
+import httpx
+from typing import List, Dict, Any, Optional
+from config import Config
+
+class LMSClient:
+    def __init__(self):
+        self.base_url = Config.LMS_API_BASE_URL.rstrip('/')
+        self.api_key = Config.LMS_API_KEY
+        self.headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+    async def _request(self, method: str, path: str) -> Dict[str, Any]:
+        """Make an HTTP request and return JSON."""
+        url = f"{self.base_url}{path}"
+        async with httpx.AsyncClient() as client:
+            try:
+                resp = await client.request(method, url, headers=self.headers, timeout=5.0)
+                resp.raise_for_status()
+                return resp.json()
+            except httpx.TimeoutException:
+                return {"error": "timeout", "detail": "Backend is not responding"}
+            except httpx.HTTPStatusError as e:
+                return {"error": "http_error", "detail": str(e)}
+            except Exception as e:
+                return {"error": "unknown", "detail": str(e)}
+
+    async def get_items(self) -> List[Dict[str, Any]]:
+        """Fetch all items (labs)."""
+        result = await self._request("GET", "/items/")
+        if isinstance(result, dict) and "error" in result:
+            return []
+        return result
+
+    async def get_pass_rates(self, lab: str) -> List[Dict[str, Any]]:
+        """Fetch per-task pass rates for a lab."""
+        result = await self._request("GET", f"/analytics/pass-rates?lab={lab}")
+        if isinstance(result, dict) and "error" in result:
+            return []
+        return result
+
+    async def check_health(self) -> bool:
+        """Check if backend is reachable."""
+        try:
+            # Try to get items as a health check
+            items = await self.get_items()
+            return True  # if we get a response (even empty), backend is up
+        except Exception:
+            return False

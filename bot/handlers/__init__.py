@@ -1,29 +1,18 @@
-"""Command handlers for the Telegram bot."""
+# Handlers package
+from .start import handle_start
+from .help import handle_help
+from .health import handle_health
+from .labs import handle_labs
+from .scores import handle_scores
+from .natural_language import handle_natural_language
+from .keyboard import get_main_keyboard
 
-def handle_start() -> str:
-    """Handle /start command."""
-    return "👋 Привет! Я бот для работы с LMS. Используйте /help для списка команд."
-def handle_help() -> str:
-    """Handle /help command."""
-    return (
-        "Доступные команды:\n"
-        "/start - приветствие\n"
-        "/help - эта справка\n"
-        "/health - статус бэкенда\n"
-        "/labs - список лабораторных\n"
-        "/scores <lab> - проходимость по задачам"
-    )
-
-def handle_health() -> str:
-    """Handle /health command."""
-    return "✅ Бэкенд доступен"
-def handle_labs() -> str:
-    """Handle /labs command."""
-    return "📚 Доступные лабораторные:\n- Lab 01\n- Lab 02"
-
-def handle_scores(lab_name: str = None) -> str:
-    """Handle /scores command."""
-    if not lab_name:
-        return "❓ Укажите название лабораторной: /scores <lab>"
-    return f"📊 Проходимость по {lab_name}:"
-
+__all__ = [
+    "handle_start",
+    "handle_help",
+    "handle_health",
+    "handle_labs",
+    "handle_scores",
+    "handle_natural_language",
+    "get_main_keyboard",
+]

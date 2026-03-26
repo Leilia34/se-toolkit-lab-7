@@ -1,5 +1,5 @@
 # Lab 7 — Build a Client with an AI Coding Agent
-
+DOLOY UCHEBUUUU
 [Sync your fork](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/syncing-a-fork#syncing-a-fork-branch-from-the-command-line) regularly — the lab gets updated.
 
 ## Product brief
@@ -95,3 +95,37 @@ By the end of this lab, you should be able to say:
 ### Optional
 
 1. [Flutter Web Chatbot](./lab/tasks/optional/task-1.md)
+
+## Deploy
+
+### Prerequisites
+
+- Docker and Docker Compose installed
+- `.env.docker.secret` file with required environment variables
+
+### Environment Variables
+
+Create `.env.docker.secret` with:
+BOT_TOKEN=your-telegram-bot-token
+LMS_API_KEY=your-lms-api-key
+LLM_API_KEY=your-llm-api-key
+LLM_API_MODEL=coder-model
+LLM_API_BASE_URL=http://host.docker.internal:42005
+AUTOCHECKER_API_LOGIN=your.email@innopolis.university
+AUTOCHECKER_API_PASSWORD=yourgithubusernameyourtelegramalias
+
+
+### Build and Start
+
+```bash
+cd ~/se-toolkit-lab-7
+docker compose --env-file .env.docker.secret up --build -d
+# Check all services running
+docker compose --env-file .env.docker.secret ps
+
+# Check bot logs  
+docker compose --env-file .env.docker.secret logs bot --tail 20
+
+# Test in Telegram - send /start to your bot
+Stop
+docker compose --env-file .env.docker.secret down
